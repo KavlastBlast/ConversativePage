@@ -1,44 +1,59 @@
 <script setup>
 import { ImageFilled, SendFilled } from '@vicons/material'
 
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 const question = ref('')
 const conversationHistory = ref([
   { role: 'assistant', content: '欢迎咨询本产品，请输入你的问题。' },
-  { role: 'user', content: '在吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' },
-  { role: 'assistant', content: '你好，请问有什么可以帮到你的吗？' }
 ])
 
 function handleInput(e) {
   question.value = e.target.innerHTML.replace(/(?:^(?:&nbsp;)+)|(?:(?:&nbsp;)+$)/g, '')
 }
-function submit(e) {
+const sessionId = ref('')
+onMounted(async () => {
+  const response = await fetch('/v1/session/create')
+  const data = response.json()
+  sessionId.value = data.sessionId
+})
+async function submit(e) {
   if (e.ctrlKey) {
     return
   }
   e.preventDefault()
   //TODO: ready to submit
   console.log(question.value)
-
+  const payload = JSON.stringify({
+    session_id: sessionId.value,
+    message: question.value
+  });
   conversationHistory.value.push({ role: 'user', content: question.value })
   e.target.innerHTML = ''
   question.value = ''
+  const response = await fetch('/v1/conversation', {
+    method: "POST",
+    headers: {
+      'Content-Type': 'text/event-stream'
+    },
+    body: payload,
+  });
+  if (!response.body) return;
+  const reader = response.body
+    .pipeThrough(new TextDecoderStream())
+    .getReader();
+  conversationHistory.value.push({ role: 'assistant', content: '...' })
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    for (const v of value.split('\r\n\r\n')) {
+      if (v === 'event: break') {
+        conversationHistory.value.push({ role: 'assistant', content: '...' })
+      } else if (v.startsWith('data: ')) {
+        const arr = v.split('data: ')
+        conversationHistory.value[conversationHistory.value.length - 1].content = arr[arr.length - 1]
+      }
+    }
+  }
 }
 </script>
 <style>
