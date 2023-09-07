@@ -36,9 +36,9 @@ onMounted(async () => {
 })
 function scrollToBottom() {
   setTimeout(() => {
-      if (conversationsScroll.value && conversations.value) {
-        conversationsScroll.value.scrollTo({top: conversations.value.scrollHeight})
-      }
+    if (conversationsScroll.value && conversations.value) {
+      conversationsScroll.value.scrollTo({ top: conversations.value.scrollHeight })
+    }
   }, 1)
 }
 async function submit(e) {
