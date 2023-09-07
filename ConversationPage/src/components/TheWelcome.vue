@@ -1,12 +1,30 @@
 <script setup>
 import { ImageFilled, SendFilled } from '@vicons/material'
 
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 const question = ref('')
 const conversationHistory = ref([
   { role: 'assistant', content: '欢迎咨询本产品，请输入你的问题。' },
 ])
 
+const describeItems = ref([
+  {
+    thumbUrl: 'https://img.alicdn.com/imgextra/i3/764341610/O1CN01WUxDNI1NlQWh9MWuE_!!764341610-0-picasso.jpg',
+    detialsUrl: 'https://staticfiles.hpstore.cn/NPI-RC/COMMERCIAL/7N9T8PC+7Z7K0PC+7Z7J9PC+7N9V7PC+7N9V8PC/img1.png',
+  },
+  {
+    thumbUrl: 'https://gw.alicdn.com/imgextra/O1CN01iYY1YS2JHQJH9YI6j_!!2201222579396-0-picasso.jpg_Q75.jpg_.webp',
+    detialsUrl: 'https://img.alicdn.com/imgextra/i2/133668489/O1CN01O5COo22Ca0zgO6znW_!!133668489.jpg',
+  },
+])
+
+const selectedItemIndex = ref(0)
+const conversationsScroll = ref(null)
+const conversations = ref(null)
+
+function onItemSelect(index) {
+  selectedItemIndex.value = index
+}
 function handleInput(e) {
   question.value = e.target.innerHTML.replace(/(?:^(?:&nbsp;)+)|(?:(?:&nbsp;)+$)/g, '')
 }
@@ -16,6 +34,13 @@ onMounted(async () => {
   const data = response.json()
   sessionId.value = data.sessionId
 })
+function scrollToBottom() {
+  setTimeout(() => {
+      if (conversationsScroll.value && conversations.value) {
+        conversationsScroll.value.scrollTo({top: conversations.value.scrollHeight})
+      }
+  }, 1)
+}
 async function submit(e) {
   if (e.ctrlKey) {
     return
@@ -42,12 +67,15 @@ async function submit(e) {
     .pipeThrough(new TextDecoderStream())
     .getReader();
   conversationHistory.value.push({ role: 'assistant', content: '...' })
+  scrollToBottom()
   while (true) {
+
     const { value, done } = await reader.read();
     if (done) break;
     for (const v of value.split('\r\n\r\n')) {
       if (v === 'event: break') {
         conversationHistory.value.push({ role: 'assistant', content: '...' })
+        scrollToBottom()
       } else if (v.startsWith('data: ')) {
         const arr = v.split('data: ')
         conversationHistory.value[conversationHistory.value.length - 1].content = arr[arr.length - 1]
@@ -193,19 +221,14 @@ async function submit(e) {
         <div class="item-side">
           <div class="item-info">
             <n-scrollbar style="max-height: 450px; height: 450px">
-              <img
-                src="https://staticfiles.hpstore.cn/NPI-RC/COMMERCIAL/7N9T8PC+7Z7K0PC+7Z7J9PC+7N9V7PC+7N9V8PC/img1.png" />
+              <img :src="describeItems[selectedItemIndex].detialsUrl" />
             </n-scrollbar>
           </div>
           <div class="item-select">
             <ul class="demo-item-list">
-              <li class="selected">
-                <img
-                  src="https://img.alicdn.com/imgextra/i3/764341610/O1CN01WUxDNI1NlQWh9MWuE_!!764341610-0-picasso.jpg" />
-              </li>
-              <li>
-                <img
-                  src="https://gw.alicdn.com/imgextra/O1CN01iYY1YS2JHQJH9YI6j_!!2201222579396-0-picasso.jpg_Q75.jpg_.webp" />
+              <li :class="{ 'selected': selectedItemIndex == i }" v-for="(item, i) in describeItems" v-bind:key="i"
+                @click="onItemSelect(i)">
+                <img :src="item.thumbUrl" />
               </li>
             </ul>
           </div>
@@ -217,8 +240,8 @@ async function submit(e) {
             <div class="window-title-bar">在线客服聊天</div>
           </div>
           <div class="window-content">
-            <n-scrollbar style="max-height: 400px; height: 400px">
-              <div class="chat-history">
+            <n-scrollbar style="padding: 10px; max-height: 400px; height: 400px" ref="conversationsScroll">
+              <div class="chat-history" ref="conversations">
                 <div :class="{
                   'chat-bubble': true,
                   'chat-bubble-right': message.role == 'user',
